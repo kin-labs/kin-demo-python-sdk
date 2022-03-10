@@ -1,7 +1,7 @@
 # Kin Python SDK Demo
 
 
-## This app demonstrates how to integrate with [Kin](https://developer.kin.org/) via the [Node SDK](https://github.com/kinecosystem/kin-python)
+## This app demonstrates how to integrate with [Kin](https://developer.kin.org/) via the [Python SDK](https://github.com/kinecosystem/kin-python)
 
 
 
@@ -37,3 +37,11 @@ yarn start
 
 ## Dev Community
 Join us on [Discord](https://discord.com/invite/kdRyUNmHDn) if you're looking for support with your App or to connect with other active Kin developers
+
+Python Installations
+```
+pip install kin-sdk-v2
+pip install python-dotenv
+pip install flask-restful
+pip install flask-cors
+```
