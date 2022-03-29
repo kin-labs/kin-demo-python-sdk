@@ -344,6 +344,16 @@ class MakePayment(Resource):
 api.add_resource(MakePayment, '/send')
 
 
+def get_sanitised_payment(payment):
+    print('payment: ', payment)
+    return {
+        'type': payment.tx_type,
+        'quarks': payment.quarks,
+        'sender': payment.sender.to_base58(),
+        'destination': payment.destination.to_base58()
+    }
+
+
 class GetTransaction(Resource):
     @cross_origin()
     def get(self):
@@ -351,14 +361,19 @@ class GetTransaction(Resource):
         transaction_id = request.args.get('transaction')
         print('transaction_id: ', transaction_id)
 
-        encoded = base58.b58encode(str.encode(transaction_id))
-        # encoded = str.encode(transaction_id)
-        print('encoded: ', encoded)
+        decoded = base58.b58decode(transaction_id)
+        print('decoded: ', decoded)
 
-        transaction = kin_client.get_transaction(encoded)
+        transaction = kin_client.get_transaction(decoded)
         print('transaction', transaction)
 
-        response = transaction
+        payments = list(map(get_sanitised_payment, transaction.payments))
+        print('payments: ', payments)
+
+        response = {
+            'txState': transaction.transaction_state,
+            'payments': payments
+        }
 
         return response
 
