@@ -1,40 +1,33 @@
 
-from pickletools import anyobject
-import logging
-from types import SimpleNamespace
+import os
+import string
 from typing import List
 
+from dotenv import load_dotenv
+from flask import Flask, request
+from flask_cors import CORS, cross_origin
+import base58
+
 from agora.utils import kin_to_quarks, quarks_to_kin
-from agora.model import Invoice, LineItem, Payment, TransactionType
+from agora.model import Payment, TransactionType
 from agora.keys import PrivateKey, PublicKey
-from agora.error import Error, TransactionErrors, InvoiceErrorReason
 from agora.client import Client, Environment
 
 from agora.webhook.events import Event
-from agora.webhook.handler import WebhookHandler, AGORA_HMAC_HEADER, APP_USER_ID_HEADER, APP_USER_PASSKEY_HEADER
+from agora.webhook.handler import WebhookHandler, AGORA_HMAC_HEADER
 from agora.webhook.sign_transaction import SignTransactionRequest, SignTransactionResponse
-
-import base58
-import base64
-import argparse
-from dotenv import load_dotenv
-import os
-from flask import Flask, jsonify, request
-from flask_restful import Resource, Api
-from flask_cors import CORS, cross_origin
 
 load_dotenv()
 
-
 app = Flask(__name__)
-api = Api(app)
 CORS(app)
 
-
-print('Kin Python SDK App')
+print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+print(' - Kin Python SDK App')
 global app_index
 app_index = int(os.environ.get('APP_INDEX')) or 0
-print('App Index', app_index)
+print(' - App Index', app_index)
 
 global kin_client
 kin_client = None
@@ -53,7 +46,7 @@ app_user_name = 'App'
 
 global app_public_key
 app_public_key = app_hot_wallet.public_key.to_base58()
-print('App Public Key:', app_public_key)
+print(' - App Public Key:', app_public_key)
 
 app_user = {
     'name': app_user_name,
@@ -71,15 +64,15 @@ global transactions
 transactions = list([])
 
 
-def save_user(name, private_key, kin_token_accounts):
-    print('save_user', name, private_key, kin_token_accounts)
+def save_user(name: string, private_key: PrivateKey, kin_token_accounts: List[PublicKey]):
+    # %%%%%%%%%%%% IMPORTANT %%%%%%%%%%%%
+    # TODO - Save your account data securely
     new_user = {
         'name': name,
         'publicKey': private_key.public_key.to_base58(),
         'privateKey': private_key,
         'kinTokenAccounts': kin_token_accounts
     }
-    print('new_user', new_user)
     if kin_client_env == Environment.TEST:
         test_users.append(new_user)
 
@@ -87,13 +80,17 @@ def save_user(name, private_key, kin_token_accounts):
         prod_users.append(new_user)
 
 
-def save_transaction(transaction):
+def save_transaction(transaction: string):
+    # TODO save your transaction data if required
     transactions.append(transaction)
 
 
-def get_user_data_to_return(user):
-    print('user', user)
+Sanitised_User_Data = {
 
+}
+
+
+def get_sanitised_user_data(user: string):
     name = user['name']
     public_key = user['publicKey']
 
@@ -103,7 +100,7 @@ def get_user_data_to_return(user):
     }
 
 
-def get_user(name):
+def get_user(name: string):
     user = None
     if kin_client_env == Environment.TEST and test_users:
         user = next((x for x in test_users if x['name'] == name), None)
@@ -114,47 +111,60 @@ def get_user(name):
     return user
 
 
-class Status(Resource):
-    @cross_origin()
-    def get(self):
-        print('get /status')
-        print('kin_client_env', kin_client_env)
-        print('kin_client', kin_client)
+@cross_origin()
+@app.route('/status', methods=['GET'])
+def status():
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print(' - get /status')
+    print('kin_client_env', kin_client_env)
+    print('kin_client', kin_client)
 
-        users_response = []
-        env = 1
-        if kin_client_env == Environment.TEST and test_users:
-            users_response = list(map(get_user_data_to_return, test_users))
+    users_response = []
+    env = 1
+    if kin_client_env == Environment.TEST and test_users:
+        users_response = list(map(get_sanitised_user_data, test_users))
 
-        if kin_client_env == Environment.PRODUCTION and prod_users:
-            users_response = list(map(get_user_data_to_return, prod_users))
-            env = 0
+    if kin_client_env == Environment.PRODUCTION and prod_users:
+        users_response = list(map(get_sanitised_user_data, prod_users))
+        env = 0
 
-        users_response.insert(0, get_user_data_to_return(app_user))
+    users_response.insert(0, get_sanitised_user_data(app_user))
 
-        app_index_response = 0
-        if(hasattr(kin_client, '_app_index')):
-            app_index_response = kin_client._app_index
+    app_index_response = 0
+    if(hasattr(kin_client, '_app_index')):
+        app_index_response = kin_client._app_index
 
-        response = {'appIndex': app_index_response,
-                    'env': env,
-                    'users': users_response,
-                    'transactions': transactions}
+    response = {'appIndex': app_index_response,
+                'env': env,
+                'users': users_response,
+                'transactions': transactions}
 
-        print('response', response)
-        return response
-
-
-api.add_resource(Status, '/status')
+    return response
 
 
-class Kin(Resource):
-    @cross_origin()
-    def post(self):
-        print('post /setup', request.args)
-        env_string = request.args.get('env')
-        print('env_string', env_string)
+def reset_on_setup_error():
+    global app_token_accounts
+    app_token_accounts = []
+    app_user['kinTokenAccounts'] = app_token_accounts
 
+    global kin_client
+    kin_client = None
+
+    global kin_client_env
+    kin_client_env = Environment.TEST
+
+
+@cross_origin()
+@app.route('/setup', methods=['POST'])
+def setup():
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print(' - post /setup')
+    env_string = request.args.get('env')
+    print('env_string', env_string)
+
+    try:
         env = Environment.TEST
         if env_string == 'Prod':
             env = Environment.PRODUCTION
@@ -167,39 +177,45 @@ class Kin(Resource):
         try:
             # check it exists
             balance = new_kin_client.get_balance(app_hot_wallet.public_key)
-        except Error as e:
+        except Exception as e:
             print('Error:', e)
             # if not, create it
             new_kin_client.create_account(app_hot_wallet)
             balance = new_kin_client.get_balance(app_hot_wallet.public_key)
-
         print('balance', balance)
 
         global app_token_accounts
         app_token_accounts = new_kin_client.resolve_token_accounts(
             app_hot_wallet.public_key)
-
         app_user['kinTokenAccounts'] = app_token_accounts
-        print('app_token_accounts: ', app_token_accounts)
 
         global kin_client
         kin_client = new_kin_client
 
         global kin_client_env
         kin_client_env = env
+        print('Setup successful')
 
         response = '', 201
+        return response
 
+    except Exception as e:
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print('Error:', e)
+        reset_on_setup_error()
+        response = '', 400
         return response
 
 
-api.add_resource(Kin, '/setup')
+@cross_origin()
+@app.route('/account', methods=['POST'])
+def account():
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print(' - post /account')
 
-
-class Account(Resource):
-    @cross_origin()
-    def post(self):
-        print('post /setup', request.args)
+    try:
         name = request.args.get('name')
         print('name', name)
 
@@ -209,26 +225,34 @@ class Account(Resource):
         kin_token_accounts = kin_client.resolve_token_accounts(
             private_key.public_key)
 
+        print('Account created', private_key.public_key.to_base58())
+
         save_user(name, private_key, kin_token_accounts)
 
         response = '', 201
 
+    except Exception as e:
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print('Error:', e)
+        response = '', 400
         return response
 
+    return response
 
-api.add_resource(Account, '/account')
 
+@cross_origin()
+@app.route('/balance', methods=['GET'])
+def balance():
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print(' - get /balance')
 
-class Balance(Resource):
-    @cross_origin()
-    def get(self):
-        print('post /setup', request.args)
+    try:
         name = request.args.get('user')
         print('name', name)
 
         user = get_user(name)
-        print('user', user)
-
         balance = kin_client.get_balance(user['privateKey'].public_key)
         print('balance', balance)
 
@@ -239,35 +263,38 @@ class Balance(Resource):
 
         return response
 
+    except Exception as e:
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print('Error:', e)
+        response = '', 400
+        return response
 
-api.add_resource(Balance, '/balance')
 
+@cross_origin()
+@app.route('/airdrop', methods=['POST'])
+def airdrop():
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print(' - post /airdrop')
 
-class Airdrop(Resource):
-    @cross_origin()
-    def post(self):
-        print('post /setup', request.args)
+    try:
         name = request.args.get('to')
         print('name', name)
         amount = request.args.get('amount')
         print('amount', amount)
 
-        user = get_user(name)
-        print('user', user)
-
-        token_account = user['kinTokenAccounts'][0]
-        print('token_account: ', token_account.to_base58())
-
         quarks = kin_to_quarks(amount)
         print('quarks: ', quarks)
 
+        user = get_user(name)
+        token_account = user['kinTokenAccounts'][0]
+        print('token_account: ', token_account.to_base58())
+
         transaction = kin_client.request_airdrop(
             token_account, quarks)
-        print('transaction', transaction)
 
         transaction_id = base58.b58encode(transaction)
-        print('transaction_id: ', transaction_id)
-
         transaction_id_string = transaction_id.decode("utf-8")
         print('transaction_id_string: ', transaction_id_string)
 
@@ -277,8 +304,12 @@ class Airdrop(Resource):
 
         return response
 
-
-api.add_resource(Airdrop, '/airdrop')
+    except Exception as e:
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print('Error:', e)
+        response = '', 400
+        return response
 
 
 def get_transaction_type(type_string):
@@ -291,11 +322,14 @@ def get_transaction_type(type_string):
     return TransactionType.NONE
 
 
-class MakePayment(Resource):
-    @cross_origin()
-    def post(self):
-        print('post /send json', request.json)
+@cross_origin()
+@app.route('/send', methods=['POST'])
+def send():
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print(' - post /send')
 
+    try:
         from_name = request.json.get('from')
         print('from_name', from_name)
         to_name = request.json.get('to')
@@ -306,9 +340,7 @@ class MakePayment(Resource):
         print('type_string', type_string)
 
         from_user = get_user(from_name)
-        print('from_user', from_user)
         to_user = get_user(to_name)
-        print('to_user', to_user)
 
         sender = from_user['privateKey']
         print('sender: ', sender.public_key.to_base58())
@@ -323,14 +355,8 @@ class MakePayment(Resource):
         print('transaction_type: ', transaction_type)
 
         payment = Payment(sender, destination, transaction_type, quarks)
-        print('payment: ', payment)
-
         transaction = kin_client.submit_payment(payment)
-        print('transaction', transaction)
-
         transaction_id = base58.b58encode(transaction)
-        print('transaction_id: ', transaction_id)
-
         transaction_id_string = transaction_id.decode("utf-8")
         print('transaction_id_string: ', transaction_id_string)
 
@@ -340,8 +366,12 @@ class MakePayment(Resource):
 
         return response
 
-
-api.add_resource(MakePayment, '/send')
+    except Exception as e:
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print('Error:', e)
+        response = '', 400
+        return response
 
 
 def get_sanitised_payment(payment):
@@ -354,18 +384,19 @@ def get_sanitised_payment(payment):
     }
 
 
-class GetTransaction(Resource):
-    @cross_origin()
-    def get(self):
-        print('get /transaction', request.args)
+@cross_origin()
+@app.route('/transaction', methods=['GET'])
+def transaction():
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print(' - get /transaction')
+
+    try:
         transaction_id = request.args.get('transaction')
         print('transaction_id: ', transaction_id)
 
         decoded = base58.b58decode(transaction_id)
-        print('decoded: ', decoded)
-
         transaction = kin_client.get_transaction(decoded)
-        print('transaction', transaction)
 
         payments = list(map(get_sanitised_payment, transaction.payments))
         print('payments: ', payments)
@@ -374,60 +405,56 @@ class GetTransaction(Resource):
             'txState': transaction.transaction_state,
             'payments': payments
         }
-
+        return response
+    except Exception as e:
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print('Error:', e)
+        response = '', 400
         return response
 
 
-api.add_resource(GetTransaction, '/transaction')
-
+# Webhooks
 webhook_secret = os.environ.get("SERVER_WEBHOOK_SECRET")
-print('webhook_secret: ', webhook_secret)
 webhook_handler = WebhookHandler(Environment.TEST, webhook_secret)
 
 
+@cross_origin()
 @app.route('/events', methods=['POST'])
 def events():
-    print('&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
-    print('&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
-    print('&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
-    print('&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
-    print('&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
-    print('&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&')
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print(' - Event Webhook')
+
     status_code, request_body = webhook_handler.handle_events(
         _handle_events,
         request.headers.get(AGORA_HMAC_HEADER),
         request.data.decode('utf-8'),
     )
+
     print('request_body: ', request_body)
     print('status_code: ', status_code)
     return request_body, status_code
 
 
 def _handle_events(received_events: List[Event]):
-    print('_handle_events: ', received_events)
     for event in received_events:
         if not event.transaction_event:
             print(f'received event: {event}')
             continue
 
-        print(
-            f'transaction completed: {event.transaction_event.tx_id.hex()} {base58.b58encode(event.transaction_event.tx_id)}')
-        print(base58.b58encode_(event.transaction_event.tx_id))
-        print(base58.b58encode(event.transaction_event.tx_id.hex()))
+        transaction_id = base58.b58encode(event.transaction_event.tx_id)
+        transaction_id_string = transaction_id.decode("utf-8")
+        print('transaction_id_string: ', transaction_id_string)
+        print('transaction completed')
 
 
+@cross_origin()
 @app.route('/sign_transaction', methods=["POST"])
 def sign_transaction():
-    print('post /sign_transaction', request)
-    print('AGORA_HMAC_HEADER', request.headers.get(AGORA_HMAC_HEADER))
-    print('body', request.data.decode('utf-8'))
-    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
-    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
-    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
-    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
-    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
-    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
-    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print(' - Sign Transaction Webhook')
 
     status_code, request_body = webhook_handler.handle_sign_transaction(
         _sign_transaction,
@@ -441,18 +468,17 @@ def sign_transaction():
 
 
 def _sign_transaction(req: SignTransactionRequest, resp: SignTransactionResponse):
-    print('_sign_transaction: ', req)
-    print('raw tx_id', req.get_tx_id())
-    tx_id = base58.b58encode(req.get_tx_id())
-    print('tx_id: ', tx_id, tx_id.hex())
+    transaction_id = base58.b58encode(req.get_tx_id())
+    transaction_id_string = transaction_id.decode("utf-8")
+    print('transaction_id_string: ', transaction_id_string)
 
     if resp.rejected:
         print(
-            f'transaction rejected: {tx_id} ({len(req.payments)} payments)')
+            f'transaction rejected: {transaction_id_string} ({len(req.payments)} payments)')
         return
 
     print(
-        f'transaction approved: {tx_id} ({len(req.payments)} payments)')
+        f'transaction approved: {transaction_id_string} ({len(req.payments)} payments)')
 
     # Note: This allows Agora to forward the transaction to the blockchain. However, it does not indicate that it will
     # be submitted successfully, or that the transaction will be successful. For example, the sender may have
@@ -463,6 +489,9 @@ def _sign_transaction(req: SignTransactionRequest, resp: SignTransactionResponse
     resp.sign(app_hot_wallet)
     return
 
+
+print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
 
 port = os.environ.get('PORT') or 3001
 if __name__ == '__main__':
