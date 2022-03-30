@@ -6,7 +6,7 @@
 
 
 ## Front End
-This Kin BE Demo Server is compatible with our [Kin SDK Front End](https://github.com/kin-labs/kin-demo-web-sdk-and-server-fe)
+This Kin BE Demo Server is compatible with our [Kin DApp Playground](https://github.com/kin-starters/kin-dapp-playground)
 
 ## Prep
 - Your App is registered on the [Kin Developer Portal](https://portal.kin.org/) so you can take advantage of the [Kin Rewards Engine](https://developer.kin.org/docs/the-kre-explained/) and get your App Index
@@ -21,27 +21,30 @@ APP_INDEX=Your App App Index
 PRIVATE_KEY=Your App Account Secret Key
 SERVER_WEBHOOK_SECRET=Your Webhook Secret
 ```
+## Python
 
-## Start
-
+Python Version
 ```
-npm run start
+3.8
 ```
-
-or
-
-```
-yarn start
-```
-## If you're just getting started, you might want to look at [this](https://developer.kin.org/tutorials/#getting-started) first...
-
-## Dev Community
-Join us on [Discord](https://discord.com/invite/kdRyUNmHDn) if you're looking for support with your App or to connect with other active Kin developers
 
 Python Installations
 ```
 pip install kin-sdk-v2
-pip install python-dotenv
-pip install flask-restful
+pip install Flask
 pip install flask-cors
+pip install python-dotenv
 ```
+
+## Start
+
+```
+python api.py
+```
+
+## If you're just getting started, you might want to look at [this](https://developer.kin.org/tutorials/#getting-started) first...
+
+## Dev Community
+Join us on [Discord](https://discord.com/invite/kdRyUNmHDn) if you're looking for support with your App or to connect with other active Kin developers.
+
+If you're stuck or have any questions you'd like answering, get in touch on our [kin-python](https://discord.com/channels/808859554997469244/811117079268818964) channel.
