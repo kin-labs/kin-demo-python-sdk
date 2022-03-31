@@ -29,11 +29,9 @@ Python Version
 ```
 
 Python Installations
+
 ```
-pip install kin-sdk-v2
-pip install Flask
-pip install flask-cors
-pip install python-dotenv
+pip install -r requirements.txt
 ```
 
 ## Start

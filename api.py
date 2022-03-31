@@ -1,4 +1,3 @@
-
 import os
 import string
 from typing import List
@@ -25,26 +24,20 @@ CORS(app)
 print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
 print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
 print(' - Kin Python SDK App')
-global app_index
+
 app_index = int(os.environ.get('APP_INDEX')) or 0
 print(' - App Index', app_index)
 
-global kin_client
 kin_client = None
 
-global kin_client_env
 kin_client_env = Environment.TEST
 
-global app_hot_wallet
 app_hot_wallet = PrivateKey.from_string(os.environ.get('PRIVATE_KEY'))
 
-global app_token_accounts
 app_token_accounts = []
 
-global app_user_name
 app_user_name = 'App'
 
-global app_public_key
 app_public_key = app_hot_wallet.public_key.to_base58()
 print(' - App Public Key:', app_public_key)
 
@@ -55,12 +48,9 @@ app_user = {
     'kinTokenAccounts': app_token_accounts,
 }
 
-global test_users
 test_users = []
-global prod_users
 prod_users = []
 
-global transactions
 transactions = list([])
 
 
