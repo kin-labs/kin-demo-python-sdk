@@ -67,6 +67,22 @@ global transactions
 transactions = list([])
 
 
+print('AgoraMemoTest!!!!!!!!!!!!!!!!!')
+
+
+def get_memo_from_string(memo_string: string):
+    print('memo_string: ', memo_string)
+    memo = AgoraMemo.from_b64_string(memo_string)
+    print('memo: ', memo)
+    foreign_key = memo.foreign_key()
+    print('foreign_key: ', foreign_key)
+    foreign_key_string = foreign_key.decode('UTF-8')
+    print('foreign_key_string: ', foreign_key_string)
+
+
+get_memo_from_string('RaAFTNHJgbTVzdGBiJWByOSAjKGFyc2BvMmBsJXNzbk=')
+
+
 def save_user(name: string, private_key: PrivateKey, kin_token_accounts: List[PublicKey]):
     # %%%%%%%%%%%% IMPORTANT %%%%%%%%%%%%
     # TODO - Save your account data securely
