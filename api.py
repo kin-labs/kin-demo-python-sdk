@@ -13,6 +13,9 @@ from agora.model import Payment, TransactionType
 from agora.keys import PrivateKey, PublicKey
 from agora.client import Client, Environment
 
+import base64
+from agora.model.memo import AgoraMemo
+
 from agora.webhook.events import Event
 from agora.webhook.handler import WebhookHandler, AGORA_HMAC_HEADER
 from agora.webhook.sign_transaction import SignTransactionRequest, SignTransactionResponse
@@ -354,9 +357,27 @@ def send():
         transaction_type = get_transaction_type(type_string)
         print('transaction_type: ', transaction_type)
 
-        payment = Payment(sender, destination, transaction_type, quarks)
+        # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        sku_string = 'Str must be 29 chars or less.'
+        print('sku_string: ', sku_string)
+
+        foreign_key = bytes(sku_string, 'UTF-8')
+        print('foreign_key: ', foreign_key)
+        print('foreign_key length: ', len(foreign_key))
+
+        memo = AgoraMemo.new(1, TransactionType.EARN, 360, foreign_key)
+        print('memo: ', memo)
+
+        memo_bytes = base64.b64encode(memo.val).decode('utf-8')
+        print('memo_bytes: ', memo_bytes)
+
+        payment = Payment(sender, destination,
+                          transaction_type, quarks, memo=memo_bytes)
+        print('payment: ', payment)
         transaction = kin_client.submit_payment(payment)
+        print('transaction: ', transaction)
         transaction_id = base58.b58encode(transaction)
+        print('transaction_id: ', transaction_id)
         transaction_id_string = transaction_id.decode("utf-8")
         print('transaction_id_string: ', transaction_id_string)
 
