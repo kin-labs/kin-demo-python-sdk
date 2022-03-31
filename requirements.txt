@@ -1,0 +1,4 @@
+kin-sdk-v2
+Flask
+flask-cors
+python-dotenv
