@@ -484,12 +484,8 @@ def _sign_transaction(req: SignTransactionRequest, resp: SignTransactionResponse
     # Backends may keep track of the transaction themselves using SignTransactionRequest.get_tx_hash() and rely on
     # either the Events webhook or polling to get the transaction status.
     resp.sign(app_hot_wallet)
-    # return
+    return
 
 
 print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
 print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
-
-# port = os.environ.get('PORT') or 3001
-# if __name__ == '__main__':
-#     app.run(debug=True, port=port)
