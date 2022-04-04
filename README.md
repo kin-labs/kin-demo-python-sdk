@@ -37,7 +37,7 @@ pip install -r requirements.txt
 ## Start
 
 ```
-python api.py
+uvicorn api:app --reload --port=3001
 ```
 
 ## If you're just getting started, you might want to look at [this](https://developer.kin.org/tutorials/#getting-started) first...
