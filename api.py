@@ -232,6 +232,7 @@ def account():
         save_user(name, private_key, kin_token_accounts)
 
         response = '', 201
+        return response
 
     except Exception as e:
         print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -239,8 +240,6 @@ def account():
         print('Error:', e)
         response = '', 400
         return response
-
-    return response
 
 
 @cross_origin()
