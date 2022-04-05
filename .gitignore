@@ -121,3 +121,5 @@ dist
 
 # Python virtualenv
 env
+
+__pycache__

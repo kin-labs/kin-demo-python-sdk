@@ -101,6 +101,22 @@ def get_user(name: string):
     return user
 
 
+def get_users():
+    users_response = []
+    env = 1
+    if kin_client_env == Environment.TEST:
+        users_response = list(map(get_sanitised_user_data, test_users))
+
+    if kin_client_env == Environment.PRODUCTION:
+        users_response = list(map(get_sanitised_user_data, prod_users))
+        env = 0
+
+    # insert app user into array
+    users_response.insert(0, get_sanitised_user_data(app_user))
+
+    return users_response, env
+
+
 @cross_origin()
 @app.route('/status', methods=['GET'])
 def status():
@@ -110,16 +126,7 @@ def status():
     print('kin_client_env', kin_client_env)
     print('kin_client', kin_client)
 
-    users_response = []
-    env = 1
-    if kin_client_env == Environment.TEST and test_users:
-        users_response = list(map(get_sanitised_user_data, test_users))
-
-    if kin_client_env == Environment.PRODUCTION and prod_users:
-        users_response = list(map(get_sanitised_user_data, prod_users))
-        env = 0
-
-    users_response.insert(0, get_sanitised_user_data(app_user))
+    users_response, env = get_users()
 
     app_index_response = 0
     if(hasattr(kin_client, '_app_index')):
@@ -184,9 +191,14 @@ def setup():
 
         global kin_client_env
         kin_client_env = env
+
+        # Webhooks - Update webhook handler if env changes
+        global webhook_handler
+        webhook_handler = WebhookHandler(kin_client_env, webhook_secret)
+
         print('Setup successful')
 
-        response = '', 201
+        response = '', 200
         return response
 
     except Exception as e:
@@ -382,7 +394,7 @@ def transaction():
     print(' - get /transaction')
 
     try:
-        transaction_id = request.args.get('transaction')
+        transaction_id = request.args.get('transaction_id')
         print('transaction_id: ', transaction_id)
 
         decoded = base58.b58decode(transaction_id)
