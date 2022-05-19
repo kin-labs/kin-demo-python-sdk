@@ -381,7 +381,8 @@ def get_sanitised_payment(payment):
         'type': payment.tx_type,
         'quarks': payment.quarks,
         'sender': payment.sender.to_base58(),
-        'destination': payment.destination.to_base58()
+        'destination': payment.destination.to_base58(),
+        'memo': str(payment.memo)
     }
 
 
@@ -473,6 +474,8 @@ def _sign_transaction(req: SignTransactionRequest, resp: SignTransactionResponse
     transaction_id_string = transaction_id.decode("utf-8")
     print('transaction_id_string: ', transaction_id_string)
 
+    # Note: Agora will _not_ forward a rejected transaction to the blockchain,
+    #       but it's safer to check that here as well.
     if resp.rejected:
         print(
             f'transaction rejected: {transaction_id_string} ({len(req.payments)} payments)')
