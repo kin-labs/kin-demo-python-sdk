@@ -8,7 +8,7 @@ from flask_cors import CORS, cross_origin
 import base58
 
 from agora.utils import kin_to_quarks, quarks_to_kin
-from agora.model import Payment, TransactionType
+from agora.model import Payment, TransactionType, Earn, EarnBatch
 from agora.keys import PrivateKey, PublicKey
 from agora.client import Client, Environment
 
@@ -346,7 +346,7 @@ def send():
         sender = from_user['privateKey']
         print('sender: ', sender.public_key.to_base58())
 
-        destination = to_user['kinTokenAccounts'][0]
+        destination = to_user["privateKey"].public_key
         print('destination: ', destination.to_base58())
 
         quarks = kin_to_quarks(amount)
@@ -360,6 +360,55 @@ def send():
         transaction_id = base58.b58encode(transaction)
         transaction_id_string = transaction_id.decode("utf-8")
         print('transaction_id_string: ', transaction_id_string)
+
+        save_transaction(transaction_id_string)
+
+        response = '', 200
+
+        return response
+
+    except Exception as e:
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print('Error:', e)
+        response = '', 400
+        return response
+
+
+def get_sanitised_batch_earn(payment):
+    to_user = get_user(payment["to"])
+    destination = to_user["privateKey"].public_key
+    amount = kin_to_quarks(payment["amount"])
+    earn = Earn(destination, amount)
+    return earn
+
+
+@cross_origin()
+@app.route('/earn_batch', methods=['POST'])
+def earn_batch():
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print(' - post /earn_batch')
+
+    try:
+        from_name = request.json.get('from')
+        print('from_name', from_name)
+        from_user = get_user(from_name)
+        sender = from_user['privateKey']
+        print('sender: ', sender.public_key.to_base58())
+
+        payments = request.json.get('batch')
+        print('payments: ', payments)
+        earns = []
+        for payment in payments:
+            earns.append(get_sanitised_batch_earn(payment))
+        batch = EarnBatch(sender, earns)
+
+        batch_earn_result = kin_client.submit_earn_batch(batch)
+
+        transaction_id = base58.b58encode(batch_earn_result.tx_id)
+        transaction_id_string = transaction_id.decode("utf-8")
+        print('Earn Batch Successful!: ', transaction_id_string)
 
         save_transaction(transaction_id_string)
 
