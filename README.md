@@ -17,6 +17,7 @@ This Kin BE Demo Server is compatible with our [Kin DApp Playground](https://git
 `.env`
 
 ```
+PORT=Server Port
 APP_INDEX=Your App App Index
 PRIVATE_KEY=Your App Account Secret Key
 SERVER_WEBHOOK_SECRET=Your Webhook Secret
