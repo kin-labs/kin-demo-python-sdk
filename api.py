@@ -466,6 +466,12 @@ def transaction():
 
 
 # Webhooks
+
+# I use localtunnel for doing local development
+# https://theboroer.github.io/localtunnel-www/
+
+# You could also use ngrok
+# https://ngrok.com/
 webhook_secret = os.environ.get("SERVER_WEBHOOK_SECRET")
 webhook_handler = WebhookHandler(Environment.TEST, webhook_secret)
 
