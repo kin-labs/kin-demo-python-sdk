@@ -1,4 +1,4 @@
-kin-sdk-v2
+kinetic-sdk
 Flask
 flask-cors
 python-dotenv
