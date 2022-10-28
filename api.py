@@ -1,23 +1,11 @@
-# from agora.webhook.sign_transaction import SignTransactionRequest, SignTransactionResponse
-# from agora.webhook.handler import WebhookHandler, AGORA_HMAC_HEADER
-# from agora.webhook.events import Event
-# from agora.client import Client, Environment
-# from agora.keys import PrivateKey, PublicKey
-# from agora.model import Payment, TransactionType, Earn, EarnBatch
-# from agora.utils import kin_to_quarks, quarks_to_kin
 from flask_cors import CORS, cross_origin
 from flask import Flask, request
 from dotenv import load_dotenv
 import json
-from typing import List
 import string
 import os
 from kinetic_sdk.kinetic_sdk import KineticSdk, Keypair, TransactionType
-from kinetic_sdk_generated.model.commitment import Commitment
-
-
-print('kinetic_sdk')
-
+from kinetic_sdk_generated.model.commitment import Commitment  # Destination
 
 load_dotenv()
 
@@ -74,11 +62,6 @@ def save_user(name: string, keypair: Keypair):
 def save_transaction(transaction: string):
     # TODO save your transaction data if required
     transactions.append(transaction)
-
-
-Sanitised_User_Data = {
-
-}
 
 
 def get_sanitised_user_data(user: string):
@@ -168,7 +151,8 @@ def setup():
 
     try:
         environment = 'devnet'
-        endpoint = 'https://sandbox.kinetic.host'
+        endpoint = os.environ.get(
+            'KINETIC_ENDPOINT') or 'https://sandbox.kinetic.host'
         if env_string in ('Prod', 'Mainnet'):
             environment = 'mainnet'
             endpoint = os.environ.get('KINETIC_ENDPOINT')
@@ -184,14 +168,17 @@ def setup():
         try:
             # check it exists
             balance = new_kinetic_client.get_balance(
-                app_hot_wallet.public_key.to_base58().decode())
+                account=app_hot_wallet.public_key)
+            if not balance['tokens']:
+                raise Exception("No Token Account")
+
         except Exception as e:
             print('Error:', e)
             # if not, create it
             new_kinetic_client.create_account(
-                owner=app_hot_wallet, mint=new_kinetic_client.config['mint'])
+                owner=app_hot_wallet, commitment=Commitment('Finalized'))
             balance = new_kinetic_client.get_balance(
-                app_hot_wallet.public_key.to_base58().decode())
+                account=app_hot_wallet.public_key)
         print('balance', balance)
 
         global kinetic_client
@@ -227,15 +214,16 @@ def account():
 
         keypair = Keypair.generate()
 
-        print('kinetic_client.config: ', kinetic_client.config['mint'])
-        print('Commitment: ', Commitment('Finalized'))
+        commitment = Commitment('Finalized')
+        print('commitment: ', commitment)
 
         kinetic_client.create_account(
-            owner=keypair, mint=kinetic_client.config['mint'])
+            owner=keypair, commitment=commitment)
 
-        print('Account created', keypair.public_key.to_base58().decode())
+        print('Account created', keypair.public_key.to_base58().decode(),
+              keypair.secret_key, keypair.seed)
 
-        save_user(name, keypair,)
+        save_user(name, keypair)
 
         response = '', 201
         return response
@@ -260,8 +248,11 @@ def balance():
         print('name', name)
 
         user = get_user(name)
+        account_id = user['publicKey']
+        print('account_id: ', account_id)
+
         balance = kinetic_client.get_balance(
-            user['keypair'].public_key.to_base58().decode())
+            account=account_id)
         print('balance', balance)
 
         balance_in_quarks = int(balance['balance'])
@@ -298,11 +289,11 @@ def airdrop():
         account_id = user['publicKey']
         print('account_id: ', account_id)
 
-        transaction = kinetic_client.request_airdrop(
-            account_id, amount, kinetic_client.config['mint'])
-        print('transaction: ', transaction)
+        airdrop = kinetic_client.request_airdrop(
+            account=account_id, amount=amount, commitment=Commitment('Finalized'))
+        print('airdrop: ', airdrop)
 
-        save_transaction(transaction['signature'])
+        save_transaction(airdrop['signature'])
 
         response = '', 200
 
@@ -345,16 +336,26 @@ def send():
 
         owner = get_user(from_name)['keypair']
         print('owner: ', owner)
+
         destination = get_user(to_name)['publicKey']
         print('destination: ', destination)
 
         tx_type = get_transaction_type(type_string)
         print('tx_type: ', tx_type)
 
-        transaction = kinetic_client.make_transfer(
-            owner=owner, destination=destination, amount=amount, mint=kinetic_client.config['mint'], tx_type=tx_type)
-        transaction_id = transaction['signature']
-        print('transaction_id_string: ', transaction_id)
+        transfer = kinetic_client.make_transfer(
+            commitment=Commitment('Finalized'),
+            amount=amount,
+            destination=destination,
+            owner=owner,
+            tx_type=tx_type,
+            # reference_id='some id',
+            # reference_type='some reference',
+            # sender_create=False
+        )
+
+        transaction_id = transfer['signature']
+        print('transfer complete: ', transaction_id)
 
         save_transaction(transaction_id)
 
@@ -371,8 +372,6 @@ def send():
 
 
 def get_sanitised_batch_earn(payment):
-    to_user = get_user(payment["to"])
-    destination = to_user["keypair"].public_key
     amount = kin_to_quarks(payment["amount"])
     earn = Earn(destination, amount)
     return earn
@@ -389,23 +388,33 @@ def earn_batch():
         from_name = request.json.get('from')
         print('from_name', from_name)
         from_user = get_user(from_name)
-        sender = from_user['keypair']
-        print('sender: ', sender.public_key.to_base58())
+        owner = from_user['keypair']
+        print('sender: ', owner.public_key)
 
         payments = request.json.get('batch')
         print('payments: ', payments)
-        earns = []
+        destinations = []
         for payment in payments:
-            earns.append(get_sanitised_batch_earn(payment))
-        batch = EarnBatch(sender, earns)
+            to_user = get_user(payment["to"])
+            destination = to_user["keypair"].public_key
+            amount = payment['amount']
 
-        batch_earn_result = kinetic_client.submit_earn_batch(batch)
+            destinations.append(Destination(
+                amount=amount, destination=destination))
 
-        transaction_id = base58.b58encode(batch_earn_result.tx_id)
-        transaction_id_string = transaction_id.decode("utf-8")
-        print('Earn Batch Successful!: ', transaction_id_string)
+        batch_transfer = kinetic_client.make_transfer_batch(
+            commitment=Commitment('Finalized'),
+            owner=owner,
+            destinations=destinations,
+            # reference_id='some id',
+            # reference_type='some reference',
+            # sender_create=False
+        )
 
-        save_transaction(transaction_id_string)
+        transaction_id = batch_transfer['signature']
+        print('batch transfer complete: ', transaction_id)
+
+        save_transaction(transaction_id)
 
         response = '', 200
 
@@ -419,17 +428,6 @@ def earn_batch():
         return response
 
 
-def get_sanitised_payment(payment):
-    print('payment: ', payment)
-    return {
-        'type': payment.tx_type,
-        'quarks': payment.quarks,
-        'sender': payment.sender.to_base58(),
-        'destination': payment.destination.to_base58(),
-        'memo': str(payment.memo)
-    }
-
-
 @cross_origin()
 @app.route('/transaction', methods=['GET'])
 def transaction():
@@ -439,18 +437,37 @@ def transaction():
 
     try:
         transaction_id = request.args.get('transaction_id')
-        print('transaction_id: ', transaction_id)
 
-        decoded = base58.b58decode(transaction_id)
-        transaction = kinetic_client.get_transaction(decoded)
+        transaction = kinetic_client.get_transaction(transaction_id)
+        print('transaction: ', transaction)
 
-        payments = list(map(get_sanitised_payment, transaction.payments))
-        print('payments: ', payments)
+        response = transaction
+        return response
+    except Exception as e:
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print('Error:', e)
+        response = '', 400
+        return response
 
-        response = {
-            'txState': transaction.transaction_state,
-            'payments': payments
-        }
+
+@cross_origin()
+@app.route('/history', methods=['GET'])
+def history():
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print(' - get /history')
+
+    try:
+        name = request.args.get('user')
+        print('name', name)
+
+        user = get_user(name)
+        history = kinetic_client.get_history(
+            user['keypair'].public_key.to_base58().decode())
+        print('history', history)
+
+        response = history
         return response
     except Exception as e:
         print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -469,67 +486,35 @@ def transaction():
 # https://ngrok.com/
 
 
-# webhook_secret = os.environ.get("SERVER_WEBHOOK_SECRET")
-# webhook_handler = WebhookHandler('devnet', webhook_secret)
+@cross_origin()
+@app.route('/events', methods=['POST'])
+def events():
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print(' - Event Webhook')
+    print('request_body: ', request.body)
+
+    response = '', 200
+    return response
 
 
-# @cross_origin()
-# @app.route('/events', methods=['POST'])
-# def events():
-#     print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
-#     print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
-#     print(' - Event Webhook')
-#     status_code, request_body = webhook_handler.handle_events(
-#         _handle_events,
-#         request.headers.get(AGORA_HMAC_HEADER),
-#         request.data.decode('utf-8'),
-#     )
-#     print('request_body: ', request_body)
-#     print('status_code: ', status_code)
-#     return request_body, status_code
-# def _handle_events(received_events: List[Event]):
-#     for event in received_events:
-#         if not event.transaction_event:
-#             print(f'received event: {event}')
-#             continue
-#         transaction_id = base58.b58encode(event.transaction_event.tx_id)
-#         transaction_id_string = transaction_id.decode("utf-8")
-#         print('transaction_id_string: ', transaction_id_string)
-#         print('transaction completed')
-# @cross_origin()
-# @app.route('/sign_transaction', methods=["POST"])
-# def sign_transaction():
-#     print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
-#     print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
-#     print(' - Sign Transaction Webhook')
-#     status_code, request_body = webhook_handler.handle_sign_transaction(
-#         _sign_transaction,
-#         request.headers.get(AGORA_HMAC_HEADER),
-#         request.data.decode('utf-8'),
-#     )
-#     print('status_code: ', status_code)
-#     print('request_body: ', request_body)
-#     return request_body, status_code
-# def _sign_transaction(req: SignTransactionRequest, resp: SignTransactionResponse):
-#     transaction_id = base58.b58encode(req.get_tx_id())
-#     transaction_id_string = transaction_id.decode("utf-8")
-#     print('transaction_id_string: ', transaction_id_string)
-#     # Note: Agora will _not_ forward a rejected transaction to the blockchain,
-#     #       but it's safer to check that here as well.
-#     if resp.rejected:
-#         print(
-#             f'transaction rejected: {transaction_id_string} ({len(req.payments)} payments)')
-#         return
-#     print(
-#         f'transaction approved: {transaction_id_string} ({len(req.payments)} payments)')
-#     # Note: This allows Agora to forward the transaction to the blockchain. However, it does not indicate that it will
-#     # be submitted successfully, or that the transaction will be successful. For example, the sender may have
-#     # insufficient funds.
-#     #
-#     # Backends may keep track of the transaction themselves using SignTransactionRequest.get_tx_hash() and rely on
-#     # either the Events webhook or polling to get the transaction status.
-#     resp.sign(app_hot_wallet)
-#     return
+@cross_origin()
+@app.route('/verify', methods=["POST"])
+def sign_transaction():
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print(' - Verify Transaction Webhook')
+    print('request_body: ', request.body)
+
+    # TODO
+    # Verify the transaction
+    # Return 400 if no good
+    # Return 200 to allow the transaction
+
+    response = '', 200
+    return response
+
+
 print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
 print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
 
