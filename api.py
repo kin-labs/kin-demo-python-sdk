@@ -25,6 +25,8 @@ kinetic_client_env = 'devnet'
 print(os.environ.get('BYTE_ARRAY'))
 app_hot_wallet = Keypair.from_secret_key(
     json.loads(os.environ.get('BYTE_ARRAY')))
+# app_hot_wallet = Keypair.from_mnemonic(
+#     json.loads(os.environ.get('MNEMONIC')))
 
 app_user_name = 'App'
 

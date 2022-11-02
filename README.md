@@ -15,11 +15,15 @@ Check out [this guide to Python and Kinetic](https://developer.kin.org/docs/deve
 ```
 PORT=3001
 APP_INDEX=999
-KINETIC_ENDPOINT='https://your_kinetic_endpoint'
+KINETIC_ENDPOINT='https://your_kinetic_endpoint' 
 BYTE_ARRAY=[24,20,238,188,26,234,120,209,88,63,170,46,66,98,21,113,194,120,143,228,231,37,91,0,242,32,180,99,243,179,57,144,11,233,235,235,203,20,105,33,47,140,152,253,12,148,72,175,141,253,242,110,225,110,21,211,118,87,99,99,99,99,99,99]
 MNEMONIC="cat dog elephant lion tiger shark whale diplodocus dragon pokemon transformer turtle"
-
 ```
+
+`KINETIC_ENDPOINT` is optional for when you are running Kinetic Locally or in Production
+
+`BYTE_ARRAY` or `MNEMONIC` can be used to create your App Wallet from an existing Keypair.
+
 ## Python
 
 Python Version
