@@ -4,8 +4,8 @@ from dotenv import load_dotenv
 import json
 import string
 import os
-from kinetic_sdk.kinetic_sdk import KineticSdk, Keypair, TransactionType
-from kinetic_sdk_generated.model.commitment import Commitment  # Destination
+from kinetic_sdk import KineticSdk, Keypair, TransactionType, Commitment
+
 
 load_dotenv()
 
@@ -212,18 +212,26 @@ def account():
         name = request.args.get('name')
         print('name', name)
 
-        keypair = Keypair.generate()
+        mnemonic = Keypair.generate_mnemonic()
+        print('mnemonic: ', mnemonic)
+        print(type(mnemonic))
+
+        # keypair = Keypair.from_mnemonic(str(mnemonic))
+        keypair = Keypair.random()
+        print('keypair: ', keypair)
+        print(type(keypair))
 
         commitment = Commitment('Finalized')
         print('commitment: ', commitment)
 
-        kinetic_client.create_account(
+        account = kinetic_client.create_account(
             owner=keypair, commitment=commitment)
 
         print('Account created', keypair.public_key.to_base58().decode(),
-              keypair.secret_key, keypair.seed)
+              account['signature'])
 
         save_user(name, keypair)
+        save_transaction(account['signature'])
 
         response = '', 201
         return response
@@ -255,8 +263,7 @@ def balance():
             account=account_id)
         print('balance', balance)
 
-        balance_in_quarks = int(balance['balance'])
-        balance_in_kin = balance_in_quarks / 100000
+        balance_in_kin = balance['balance']
 
         response = str(balance_in_kin)
 
@@ -349,8 +356,8 @@ def send():
             destination=destination,
             owner=owner,
             tx_type=tx_type,
-            # reference_id='some id',
-            # reference_type='some reference',
+            reference_id='some id',
+            reference_type='some reference',
             # sender_create=False
         )
 
@@ -371,12 +378,6 @@ def send():
         return response
 
 
-def get_sanitised_batch_earn(payment):
-    amount = kin_to_quarks(payment["amount"])
-    earn = Earn(destination, amount)
-    return earn
-
-
 @cross_origin()
 @app.route('/earn_batch', methods=['POST'])
 def earn_batch():
@@ -393,21 +394,22 @@ def earn_batch():
 
         payments = request.json.get('batch')
         print('payments: ', payments)
+
         destinations = []
+        print('destinations: ', destinations)
         for payment in payments:
             to_user = get_user(payment["to"])
             destination = to_user["keypair"].public_key
             amount = payment['amount']
-
-            destinations.append(Destination(
-                amount=amount, destination=destination))
+            destinations.append({'destination': destination, 'amount': amount})
+        print('destinations: ', destinations)
 
         batch_transfer = kinetic_client.make_transfer_batch(
             commitment=Commitment('Finalized'),
             owner=owner,
             destinations=destinations,
-            # reference_id='some id',
-            # reference_type='some reference',
+            reference_id='some id',
+            reference_type='some reference',
             # sender_create=False
         )
 
@@ -437,11 +439,12 @@ def transaction():
 
     try:
         transaction_id = request.args.get('transaction_id')
+        print('transaction_id: ', transaction_id)
 
-        transaction = kinetic_client.get_transaction(transaction_id)
+        transaction = kinetic_client.get_transaction(signature=transaction_id)
         print('transaction: ', transaction)
 
-        response = transaction
+        response = str(transaction)
         return response
     except Exception as e:
         print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -464,10 +467,10 @@ def history():
 
         user = get_user(name)
         history = kinetic_client.get_history(
-            user['keypair'].public_key.to_base58().decode())
+            account=user['keypair'].public_key)
         print('history', history)
 
-        response = history
+        response = str(history)
         return response
     except Exception as e:
         print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -492,7 +495,7 @@ def events():
     print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
     print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
     print(' - Event Webhook')
-    print('request_body: ', request.body)
+    print('request: ', request.json)
 
     response = '', 200
     return response
@@ -504,7 +507,7 @@ def sign_transaction():
     print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
     print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
     print(' - Verify Transaction Webhook')
-    print('request_body: ', request.body)
+    print('request: ', request.json)
 
     # TODO
     # Verify the transaction
