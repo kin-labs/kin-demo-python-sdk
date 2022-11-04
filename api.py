@@ -52,7 +52,6 @@ def save_user(name: string, keypair: Keypair):
         'name': name,
         'publicKey': keypair.public_key.to_base58().decode(),
         'keypair': keypair,
-        # 'kinTokenAccounts': kin_token_accounts
     }
     if kinetic_client_env == 'devnet':
         devnet_users.append(new_user)
