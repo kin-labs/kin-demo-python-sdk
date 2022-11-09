@@ -217,8 +217,8 @@ def account():
         print('mnemonic: ', mnemonic)
         print(type(mnemonic))
 
-        # keypair = Keypair.from_mnemonic(mnemonic)
-        keypair = Keypair.random()
+        keypair = Keypair.from_mnemonic(mnemonic)
+        # keypair = Keypair.random()
         print('keypair: ', keypair)
 
         commitment = Commitment('Finalized')
