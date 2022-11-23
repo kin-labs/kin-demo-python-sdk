@@ -22,11 +22,12 @@ print(' - App Index', app_index)
 kinetic_client = None
 kinetic_client_env = 'devnet'
 
-print(os.environ.get('BYTE_ARRAY'))
-app_hot_wallet = Keypair.from_secret_key(
-    json.loads(os.environ.get('BYTE_ARRAY')))
-# app_hot_wallet = Keypair.from_mnemonic(
-#     json.loads(os.environ.get('MNEMONIC')))
+# print(os.environ.get('BYTE_ARRAY'))
+# app_hot_wallet = Keypair.from_secret(
+#     os.environ.get('BYTE_ARRAY'))
+print(os.environ.get('MNEMONIC'))
+app_hot_wallet = Keypair.from_secret(
+    os.environ.get('MNEMONIC'))
 
 app_user_name = 'App'
 
@@ -217,7 +218,7 @@ def account():
         print('mnemonic: ', mnemonic)
         print(type(mnemonic))
 
-        keypair = Keypair.from_mnemonic(mnemonic)
+        keypair = Keypair.from_secret(mnemonic)
         # keypair = Keypair.random()
         print('keypair: ', keypair)
 
