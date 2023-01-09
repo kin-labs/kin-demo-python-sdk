@@ -4,7 +4,9 @@ from dotenv import load_dotenv
 import json
 import string
 import os
-from kinetic_sdk import KineticSdk, Keypair, TransactionType, Commitment
+from kinetic_sdk import KineticSdk, Commitment
+from kinetic_sdk.keypair import Keypair
+from kinetic_sdk.models.transaction_type import TransactionType
 
 
 load_dotenv()
@@ -59,6 +61,19 @@ def save_user(name: string, keypair: Keypair):
 
     if kinetic_client_env == 'mainnet':
         mainnet_users.append(new_user)
+
+
+def delete_user(name: string):
+    global devnet_users
+    global mainnet_users
+
+    if kinetic_client_env == 'devnet':
+        filtered_arr = [p for p in devnet_users if p['name'] != name]
+        devnet_users = filtered_arr
+
+    if kinetic_client_env == 'mainnet':
+        filtered_arr = [p for p in mainnet_users if p['name'] != name]
+        mainnet_users = filtered_arr
 
 
 def save_transaction(transaction: string):
@@ -119,8 +134,8 @@ def status():
     environment_response = 'devnet'
     if (kinetic_client is not None and hasattr(kinetic_client, 'config')):
         print('kinetic_client: ', kinetic_client.config)
-        app_index_response = kinetic_client.config['index']
-        environment_response = kinetic_client.config['environment']
+        app_index_response = kinetic_client.config['app']['index']
+        environment_response = kinetic_client.config['environment']['name']
 
     response = {'appIndex': app_index_response,
                 'env': environment_response,
@@ -178,7 +193,7 @@ def setup():
             print('Error:', e)
             # if not, create it
             new_kinetic_client.create_account(
-                owner=app_hot_wallet, commitment=Commitment('Finalized'))
+                owner=app_hot_wallet, commitment=Commitment('Confirmed'))
             balance = new_kinetic_client.get_balance(
                 account=app_hot_wallet.public_key)
         print('balance', balance)
@@ -222,7 +237,7 @@ def account():
         # keypair = Keypair.random()
         print('keypair: ', keypair)
 
-        commitment = Commitment('Finalized')
+        commitment = Commitment('Confirmed')
         print('commitment: ', commitment)
 
         account = kinetic_client.create_account(
@@ -233,6 +248,39 @@ def account():
 
         save_user(name, keypair)
         save_transaction(account['signature'])
+
+        response = '', 201
+        return response
+
+    except Exception as e:
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print('Error:', e)
+        response = '', 400
+        return response
+
+
+@cross_origin()
+@app.route('/close-account', methods=['POST'])
+def close_account():
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print(' - post /close-account')
+
+    try:
+        name = request.args.get('user')
+        print('name', name)
+
+        user = get_user(name)
+        account_id = user['publicKey']
+        print('account_id: ', account_id)
+
+        transaction = kinetic_client.close_account(
+            account=account_id)
+        print('balance', balance)
+
+        delete_user(name)
+        save_transaction(transaction['signature'])
 
         response = '', 201
         return response
@@ -298,7 +346,7 @@ def airdrop():
         print('account_id: ', account_id)
 
         airdrop = kinetic_client.request_airdrop(
-            account=account_id, amount=amount, commitment=Commitment('Finalized'))
+            account=account_id, amount=amount, commitment=Commitment('Confirmed'))
         print('airdrop: ', airdrop)
 
         save_transaction(airdrop['signature'])
@@ -352,7 +400,7 @@ def send():
         print('tx_type: ', tx_type)
 
         transfer = kinetic_client.make_transfer(
-            commitment=Commitment('Finalized'),
+            commitment=Commitment('Confirmed'),
             amount=amount,
             destination=destination,
             owner=owner,
@@ -406,7 +454,7 @@ def earn_batch():
         print('destinations: ', destinations)
 
         batch_transfer = kinetic_client.make_transfer_batch(
-            commitment=Commitment('Finalized'),
+            commitment=Commitment('Confirmed'),
             owner=owner,
             destinations=destinations,
             reference_id='some id',
@@ -472,6 +520,58 @@ def history():
         print('history', history)
 
         response = str(history)
+        return response
+    except Exception as e:
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print('Error:', e)
+        response = '', 400
+        return response
+
+
+@cross_origin()
+@app.route('/account-info', methods=['GET'])
+def account_info():
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print(' - get /account-info')
+
+    try:
+        name = request.args.get('user')
+        print('name', name)
+
+        user = get_user(name)
+        account_info = kinetic_client.get_account_info(
+            account=user['keypair'].public_key)
+        print('account_info', account_info)
+
+        response = str(account_info)
+        return response
+    except Exception as e:
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print('Error:', e)
+        response = '', 400
+        return response
+
+
+@cross_origin()
+@app.route('/token-accounts', methods=['GET'])
+def token_accounts():
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+    print(' - get /token-accounts')
+
+    try:
+        name = request.args.get('user')
+        print('name', name)
+
+        user = get_user(name)
+        token_accounts = kinetic_client.get_token_accounts(
+            account=user['keypair'].public_key)
+        print('token_accounts', token_accounts)
+
+        response = str(token_accounts)
         return response
     except Exception as e:
         print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
