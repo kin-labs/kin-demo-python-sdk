@@ -405,8 +405,7 @@ def send():
             destination=destination,
             owner=owner,
             tx_type=tx_type,
-            reference_id='some id',
-            reference_type='some reference',
+            reference='some reference',
             # sender_create=False
         )
 
@@ -457,8 +456,7 @@ def earn_batch():
             commitment=Commitment('Confirmed'),
             owner=owner,
             destinations=destinations,
-            reference_id='some id',
-            reference_type='some reference',
+            reference='some reference',
             # sender_create=False
         )
 
